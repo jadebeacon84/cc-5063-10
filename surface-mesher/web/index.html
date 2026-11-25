@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>参数曲面离散化器 · 曲面编辑视窗</title>
+<link rel="stylesheet" href="/style.css" />
+<script type="importmap">
+{ "imports": { "three": "/vendor/three" } }
+</script>
+</head>
+<body>
+<header>
+  <h1>参数曲面离散化器</h1>
+  <p class="sub">自适应曲率细化 · 共享边统一采样身份 · 硬顶点预算 · 真实网格导出</p>
+</header>
+
+<main>
+  <section id="controls">
+    <h2>离散参数</h2>
+    <label>场景
+      <select id="scene"></select>
+    </label>
+    <p id="scene-desc" class="desc"></p>
+
+    <div class="grid2">
+      <label>位置容差
+        <input type="number" id="posTol" step="0.001" min="0.0001" />
+      </label>
+      <label>法线容差 (°)
+        <input type="number" id="normalTol" step="1" min="0.5" />
+      </label>
+    </div>
+    <p class="desc">默认保留各面片自己的声明容差（焊缝两侧可不同）；手动修改后才作为全局容差覆盖所有片。</p>
+
+    <label>顶点硬上限
+      <input type="number" id="vertexCap" step="100" min="8" />
+    </label>
+
+    <label>预算用尽时
+      <select id="mode">
+        <option value="coarsen-remote">降低远处未锁定片精度（coarsen-remote）</option>
+        <option value="reject">保住锁定片并拒绝导出（reject）</option>
+      </select>
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="showWire" checked /> 显示三角网格线框
+    </label>
+    <label class="check">
+      <input type="checkbox" id="showUnsat" checked /> 高亮未达标单元
+    </label>
+    <label class="check">
+      <input type="checkbox" id="showSeams" checked /> 高亮共享焊缝
+    </label>
+
+    <div class="buttons">
+      <button id="run" class="primary">执行自适应剖分</button>
+      <button id="exportObj">导出 OBJ</button>
+      <button id="exportStl">导出 STL</button>
+    </div>
+    <p id="status" class="status"></p>
+  </section>
+
+  <section id="viewport">
+    <canvas id="canvas"></canvas>
+    <div id="overlay" class="overlay hidden"></div>
+  </section>
+
+  <section id="results">
+    <h2>结果区：网格密度与几何误差（来自真实剖分）</h2>
+    <div id="summary" class="cards"></div>
+    <h3>各面片指标</h3>
+    <div id="patchTable"></div>
+    <h3>焊缝与连接性</h3>
+    <div id="weldTable"></div>
+    <h3>细化原因（事件与计数）</h3>
+    <div id="reasonPanel"></div>
+  </section>
+</main>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

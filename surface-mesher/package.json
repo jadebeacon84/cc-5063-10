@@ -1,0 +1,19 @@
+{
+  "name": "surface-mesher",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/mesher.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.187.0"
+  }
+}
