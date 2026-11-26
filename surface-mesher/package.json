@@ -8,7 +8,10 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/mesher.test.js"
+    "test": "node --test test/mesher.test.js test/golden/golden.test.js",
+    "smoke": "node test/smoke.js",
+    "trace": "node test/trace.js",
+    "golden:gen": "node test/golden/gen.js"
   },
   "keywords": [],
   "author": "",

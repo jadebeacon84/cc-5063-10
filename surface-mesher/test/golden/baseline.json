@@ -1,0 +1,143 @@
+{
+  "weldedPair": {
+    "totalVertices": 9390,
+    "totalTriangles": 18127,
+    "globalVertices": 9268,
+    "faces": 18127,
+    "gridError": [
+      {
+        "name": "smooth-half",
+        "maxSampledDistance": 0.0003918953212861737,
+        "maxSampledNormalAngle": 0.053097059195701866,
+        "tolerancesMet": true
+      },
+      {
+        "name": "curved-half",
+        "maxSampledDistance": 0.00014258465012845082,
+        "maxSampledNormalAngle": 0.02682939571668187,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": [
+      {
+        "weld": "seam-1",
+        "maxGap": 0,
+        "mismatchedVertices": 0,
+        "crackFree": true
+      }
+    ]
+  },
+  "frame": {
+    "totalVertices": 10168,
+    "totalTriangles": 19619,
+    "globalVertices": 10037,
+    "faces": 19619,
+    "gridError": [
+      {
+        "name": "frame-left",
+        "maxSampledDistance": 0.00028562849171187555,
+        "maxSampledNormalAngle": 0.049158616113584186,
+        "tolerancesMet": true
+      },
+      {
+        "name": "frame-right",
+        "maxSampledDistance": 0.00014258465012845082,
+        "maxSampledNormalAngle": 0.02682939571668187,
+        "tolerancesMet": true
+      },
+      {
+        "name": "frame-lip",
+        "maxSampledDistance": 1.5700924586837752e-16,
+        "maxSampledNormalAngle": 0,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": [
+      {
+        "weld": "frame-seam",
+        "maxGap": 0,
+        "mismatchedVertices": 0,
+        "crackFree": true
+      }
+    ]
+  },
+  "budgetWeld": {
+    "totalVertices": 8000,
+    "totalTriangles": 15369,
+    "globalVertices": 7878,
+    "faces": 15369,
+    "gridError": [
+      {
+        "name": "far-half",
+        "maxSampledDistance": 0.0009598604776570292,
+        "maxSampledNormalAngle": 0.110660598100421,
+        "tolerancesMet": true
+      },
+      {
+        "name": "near-half",
+        "maxSampledDistance": 0.00014258465012845082,
+        "maxSampledNormalAngle": 0.02682939571668187,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": [
+      {
+        "weld": "seam-budget",
+        "maxGap": 0,
+        "mismatchedVertices": 0,
+        "crackFree": true
+      }
+    ]
+  },
+  "lips": {
+    "totalVertices": 8,
+    "totalTriangles": 4,
+    "globalVertices": 8,
+    "faces": 4,
+    "gridError": [
+      {
+        "name": "lip-upper",
+        "maxSampledDistance": 1.5700924586837752e-16,
+        "maxSampledNormalAngle": 0,
+        "tolerancesMet": true
+      },
+      {
+        "name": "lip-lower",
+        "maxSampledDistance": 1.5700924586837752e-16,
+        "maxSampledNormalAngle": 0,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": []
+  },
+  "spike": {
+    "totalVertices": 3901,
+    "totalTriangles": 7584,
+    "globalVertices": 3901,
+    "faces": 7584,
+    "gridError": [
+      {
+        "name": "lorentzian-spike",
+        "maxSampledDistance": 0.0004290278343212066,
+        "maxSampledNormalAngle": 0.10012816226689522,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": []
+  },
+  "band": {
+    "totalVertices": 7681,
+    "totalTriangles": 15104,
+    "globalVertices": 7616,
+    "faces": 15104,
+    "gridError": [
+      {
+        "name": "sphere-band",
+        "maxSampledDistance": 0.0010931996481296875,
+        "maxSampledNormalAngle": 0.14541068494026482,
+        "tolerancesMet": true
+      }
+    ],
+    "sharedEdge": []
+  }
+}

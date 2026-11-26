@@ -171,6 +171,8 @@ function currentParams() {
     scene: $('scene').value,
     vertexCap: Number($('vertexCap').value),
     mode: $('mode').value,
+    errorMetric: $('errorMetric').value,
+    boundaryStrategy: $('boundaryStrategy').value,
   };
   // Until the operator edits the tolerance fields, each patch keeps its own
   // declared tolerance (needed so welded neighbours can demand different
@@ -224,18 +226,57 @@ async function exportMesh(format) {
   }
 }
 
+// Drag mid-flight metric swap audit: fires overlapping requests, swaps the
+// metric in the middle, and reports abandoned requests plus any stale result
+// the scheduler refused so an old seam can never overwrite a newer one.
+async function dragSwap() {
+  setStatus('拖动中途更换误差度量，记录废弃请求…', 'warn');
+  try {
+    const report = await api('/api/drag-swap', { scene: $('scene').value });
+    const comm = report.completions;
+    const accepted = comm.filter((c) => c.accepted);
+    const stale = comm.filter((c) => c.reason === 'stale-result');
+    const ab = report.scheduler.abandoned;
+    $('dragPanel').innerHTML =
+      `<h3>拖动中途换度量审核</h3>` +
+      table(
+        ['请求', '代次', '度量', '完成结果'],
+        comm.map((c) => [
+          c.label, c.gen, c.metric,
+          c.accepted
+            ? '<span class="tag good">已提交</span>'
+            : `<span class="tag bad">${c.reason}</span>`,
+        ])
+      ) +
+      `<p class="desc">废弃请求（被更新请求取代，未完成即作废）：${ab.length} 条；` +
+      `被拒绝的过期结果（较慢旧结果，未覆盖新接缝）：${stale.length} 条；` +
+      `最终提交代次：${report.scheduler.committedGen}。</p>`;
+    setStatus(
+      `审核完成：废弃 ${ab.length} 条，拒绝过期结果 ${stale.length} 条，仅保留代次 ${report.scheduler.committedGen}`,
+      stale.length ? 'ok' : 'warn'
+    );
+  } catch (err) {
+    setStatus(`拖动审核失败：${err.message}`, 'err');
+  }
+}
+
 // ---------- results panels ----------
 function renderResults(data) {
   const s = data.summary;
   const allMet = data.verification.patches.every((p) => p.tolerancesMet);
+  const ev = data.evidence;
   $('summary').innerHTML = `
     <div class="card"><div class="k">全局顶点（去重后）</div><div class="v">${s.globalVertices}</div></div>
     <div class="card"><div class="k">三角单元</div><div class="v">${s.totalTriangles}</div></div>
     <div class="card"><div class="k">顶点硬上限</div><div class="v">${s.vertexCap}</div></div>
     <div class="card"><div class="k">预算模式</div><div class="v" style="font-size:14px">${s.mode}</div></div>
+    <div class="card"><div class="k">误差度量</div><div class="v" style="font-size:13px">${s.errorMetric}</div></div>
+    <div class="card"><div class="k">共享边策略</div><div class="v" style="font-size:13px">${s.boundaryStrategy}</div></div>
     <div class="card"><div class="k">导出状态</div><div class="v ${s.rejected ? 'bad' : 'good'}" style="font-size:15px">${s.rejected ? '已拒绝' : '接受'}</div></div>
     <div class="card"><div class="k">容差达标</div><div class="v ${allMet ? 'good' : 'bad'}" style="font-size:15px">${allMet ? '全部' : '有未达标'}</div></div>
   `;
+
+  renderEvidence(ev);
 
   $('patchTable').innerHTML = table(
     ['面片', '顶点', '单元', '误差种类', '采样距离(实)', '保证距离界', '采样法角(实)', '保证法角界', '松弛', '未达标'],
@@ -282,9 +323,43 @@ function renderResults(data) {
   overlay.innerHTML = `
     <b>${$('scene').selectedOptions[0].text}</b><br>
     顶点 ${s.globalVertices} · 单元 ${s.totalTriangles}<br>
-    焊缝 ${data.welds.length} · 裂口 ${data.verification.cracks.every((c) => c.crackFree) ? '无' : '有'}<br>
+    度量 ${s.errorMetric} · 策略 ${s.boundaryStrategy}<br>
+    焊缝 ${data.welds.length} · 裂口 ${ev ? (ev.summary.allSeamsFree ? '无' : '有') : '—'}<br>
     <span style="color:var(--${allMet ? 'good' : 'bad'})">${allMet ? '全部达标' : '存在未达标区域'}</span>
   `;
+}
+
+function renderEvidence(ev) {
+  if (!ev) { $('evidencePanel').innerHTML = '<p class="desc">无证据数据。</p>'; return; }
+  const gridRows = ev.gridError.map((g) => [
+    g.patch,
+    `密度 ${g.maxDistance !== undefined ? fmt(g.maxDistance) : '—'}`,
+    `${deg(g.maxNormalAngle)}°`,
+    g.met ? '<span class="tag good">达标</span>' : '<span class="tag bad">超差</span>',
+    g.source,
+  ]);
+  const seamRows = ev.sharedEdge.map((e) => [
+    e.weld, e.boundaryVertices, fmt(e.maxGap), e.mismatchedVertices,
+    e.tJunctions !== undefined ? e.tJunctions : 0,
+    e.crackFree ? '<span class="tag good">逐顶点相接</span>' : '<span class="tag bad">存在错配</span>',
+  ]);
+  const gridOk = ev.summary.allGridMet
+    ? '<span class="tag good">网格误差全部达标</span>'
+    : '<span class="tag bad">网格误差异常</span>';
+  const seamOk = ev.summary.allSeamsFree
+    ? '<span class="tag good">共享边逐顶点相接</span>'
+    : '<span class="tag bad">共享边错配（裂口/T 接）</span>';
+  const topoOk = ev.summary.topologyClean
+    ? '<span class="tag good">拓扑干净</span>'
+    : '<span class="tag bad">拓扑异常</span>';
+  $('evidencePanel').innerHTML =
+    `<div style="margin-bottom:8px">${gridOk} ${seamOk} ${topoOk}</div>` +
+    `<h3>网格误差（独立网格探针复算）</h3>` +
+    table(['面片', '网格密度', '法线误差', '状态', '来源'], gridRows) +
+    `<h3>共享边对应（导出网格顶点身份）</h3>` +
+    (seamRows.length
+      ? table(['焊缝', '边界顶点', '最大裂口', '顶点错配', 'T 接数', '状态'], seamRows)
+      : '<p class="desc">无焊接边。</p>');
 }
 
 function reasonText(code) {
@@ -293,6 +368,8 @@ function reasonText(code) {
     'normal-bound': '法线保证界超差',
     'pos-estimate': '位置采样/估计超差',
     'normal-estimate': '法线采样/估计超差',
+    'pos-sampled': '位置采样超差',
+    'normal-sampled': '法线采样超差',
     'singular-node': '重复节点强制细化',
     'depth-cap': '达到深度上限',
     'budget': '顶点预算阻断',
@@ -339,6 +416,7 @@ async function init() {
   $('run').addEventListener('click', runMesh);
   $('exportObj').addEventListener('click', () => exportMesh('obj'));
   $('exportStl').addEventListener('click', () => exportMesh('stl'));
+  $('dragSwap').addEventListener('click', dragSwap);
   ['showWire', 'showUnsat', 'showSeams'].forEach((id) =>
     $(id).addEventListener('change', () => currentData && renderData(currentData)));
   $('scene-desc').textContent = sceneLib[0].description;

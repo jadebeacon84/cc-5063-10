@@ -23,6 +23,20 @@
     </label>
     <p id="scene-desc" class="desc"></p>
 
+    <label>误差度量（可替换审核后端）
+      <select id="errorMetric">
+        <option value="analytic-sampled">解析界 + 采样（默认可保证）</option>
+        <option value="sampled-only">仅采样估计</option>
+      </select>
+    </label>
+
+    <label>共享边协调策略
+      <select id="boundaryStrategy">
+        <option value="unified-cached">统一缓存边界剖分（默认可证明无裂缝）</option>
+        <option value="negotiated-depth">邻片协商细化深度</option>
+      </select>
+    </label>
+
     <div class="grid2">
       <label>位置容差
         <input type="number" id="posTol" step="0.001" min="0.0001" />
@@ -59,6 +73,9 @@
       <button id="exportObj">导出 OBJ</button>
       <button id="exportStl">导出 STL</button>
     </div>
+    <div class="buttons" style="margin-top:8px">
+      <button id="dragSwap">拖动中途换度量（审核）</button>
+    </div>
     <p id="status" class="status"></p>
   </section>
 
@@ -70,12 +87,15 @@
   <section id="results">
     <h2>结果区：网格密度与几何误差（来自真实剖分）</h2>
     <div id="summary" class="cards"></div>
+    <h3>执行证据（独立复算：网格误差 + 共享边顶点对应）</h3>
+    <div id="evidencePanel"></div>
     <h3>各面片指标</h3>
     <div id="patchTable"></div>
     <h3>焊缝与连接性</h3>
     <div id="weldTable"></div>
     <h3>细化原因（事件与计数）</h3>
     <div id="reasonPanel"></div>
+    <div id="dragPanel"></div>
   </section>
 </main>
 

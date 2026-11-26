@@ -193,6 +193,8 @@ function buildScene(name, params = {}) {
   const built = scene.build(params);
   built.name = name;
   built.description = scene.description;
+  if (params.errorMetric) built.errorMetric = params.errorMetric;
+  if (params.boundaryStrategy) built.boundaryStrategy = params.boundaryStrategy;
   return built;
 }
 

@@ -8,7 +8,10 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const { buildScene, scenes } = require('./scenes');
-const { Mesher } = require('./mesher');
+const { Mesher } = require('./discretization');
+const { RequestScheduler } = require('./discretization');
+const { buildEvidence, crossCheck } = require('./discretization/evidence');
+const { resolveEstimator } = require('./discretization/estimation');
 const { extractMesh, seamVertexIds, verify, writeOBJ, writeSTL } = require('./export');
 
 function readBody(req) {
@@ -29,24 +32,30 @@ function readBody(req) {
   });
 }
 
-// Serialise enough geometry for the three.js viewer plus full metrics.
+// Serialise enough geometry for the three.js viewer plus full metrics and
+// independent execution evidence (grid error + shared-edge correspondence).
 function serialiseMesh(mesher, result) {
   const mesh = extractMesh(mesher);
   const verification = verify(mesher, mesh, { gridN: 18 });
+  const evidence = buildEvidence(mesher, mesh, verification);
   return {
     summary: {
       rejected: result.rejected,
       rejectReason: result.rejectReason,
       vertexCap: result.vertexCap,
       mode: result.mode,
+      boundaryStrategy: result.boundaryStrategy,
+      errorMetric: result.errorMetric,
       totalVertices: result.totalVertices,
       globalVertices: mesh.vertices.length,
       totalTriangles: result.totalTriangles,
     },
     welds: result.welds,
     events: result.events,
+    metricSwaps: result.metricSwaps,
     patches: result.patches,
     verification,
+    evidence,
     geometry: {
       positions: flatten(mesh.vertices),
       faces: mesh.faces,
@@ -66,9 +75,71 @@ function flatten(vertices) {
 
 function handleMesh(params) {
   const scene = buildScene(params.scene || 'bump', params);
-  const mesher = new Mesher(scene);
+  const mesher = new Mesher(scene, {
+    estimator: params.errorMetric,
+    boundaryStrategy: params.boundaryStrategy,
+  });
   const result = mesher.run();
   return { payload: serialiseMesh(mesher, result), mesher, result, scene };
+}
+
+// Simulated interactive drag: several mesh requests are issued while the
+// operator changes the error metric mid-flight.  Requests complete out of
+// order so a slow old run resolves after a newer one.  The scheduler records
+// abandoned requests and refuses the stale result, proving the old seam never
+// overwrites the new one.
+function handleDragSwap(params) {
+  const scheduler = new RequestScheduler();
+  const jobs = (params.requests && params.requests.length)
+    ? params.requests
+    : [
+      // Oldest request is also the slowest, so it finishes last.
+      { label: 'drag-1', scene: params.scene || 'weldedPair', metric: 'analytic-sampled', delay: 160 },
+      { label: 'drag-2', scene: params.scene || 'weldedPair', metric: 'sampled-only', delay: 70 },
+      { label: 'drag-3', scene: params.scene || 'weldedPair', metric: 'analytic-sampled', delay: 10 },
+    ];
+
+  // Issue all requests first (later ones supersede earlier ones), compute each
+  // result synchronously, then commit on a common clock so completion order is
+  // governed by `delay` rather than by compute time.
+  const issued = jobs.map((jobSpec, idx) => {
+    const job = scheduler.begin(jobSpec.label);
+    scheduler.noteMetricSwap(job, idx === 0 ? null : jobs[idx - 1].metric, jobSpec.metric);
+    const scene = buildScene(jobSpec.scene || params.scene || 'weldedPair', {
+      errorMetric: jobSpec.metric,
+      boundaryStrategy: params.boundaryStrategy,
+    });
+    const mesher = new Mesher(scene);
+    const result = mesher.run();
+    const mesh = extractMesh(mesher);
+    const verification = verify(mesher, mesh, { gridN: 10 });
+    const evidence = buildEvidence(mesher, mesh, verification);
+    const payload = {
+      generation: job.gen,
+      label: jobSpec.label,
+      metric: result.errorMetric,
+      triangles: result.totalTriangles,
+      seamCrackFree: evidence.summary.allSeamsFree,
+    };
+    return { jobSpec, job, payload };
+  });
+
+  return new Promise((resolve) => {
+    const completions = [];
+    let remaining = issued.length;
+    for (const { jobSpec, job, payload } of issued) {
+      setTimeout(() => {
+        const commit = scheduler.commit(job, payload);
+        completions.push({
+          label: jobSpec.label, gen: job.gen, metric: jobSpec.metric,
+          accepted: commit.accepted, reason: commit.reason || null,
+        });
+        if (--remaining === 0) {
+          resolve({ scheduler: scheduler.report(), completions });
+        }
+      }, jobSpec.delay || 0);
+    }
+  });
 }
 
 function createServer(outDir) {
@@ -85,13 +156,44 @@ function createServer(outDir) {
       if (req.method === 'GET' && url.pathname === '/api/scenes') {
         const lib = scenes();
         const list = Object.values(lib).map((s) => ({ name: s.name, description: s.description }));
-        return json(res, 200, { scenes: list });
+        return json(res, 200, {
+          scenes: list,
+          errorMetrics: Object.keys(require('./discretization/estimation').estimators),
+          boundaryStrategies: Object.keys(require('./discretization/boundary').strategies),
+        });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/mesh') {
         const params = await readBody(req);
         const { payload } = handleMesh(params);
         return json(res, 200, payload);
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/evidence') {
+        const params = await readBody(req);
+        const scene = buildScene(params.scene || 'bump', params);
+        const mesher = new Mesher(scene, {
+          estimator: params.errorMetric,
+          boundaryStrategy: params.boundaryStrategy,
+        });
+        const result = mesher.run();
+        const check = crossCheck(mesher, result, { gridN: params.gridN || 24 });
+        return json(res, 200, {
+          summary: {
+            rejected: result.rejected,
+            errorMetric: result.errorMetric,
+            boundaryStrategy: result.boundaryStrategy,
+          },
+          evidence: check.evidence,
+          ok: check.ok,
+          problems: check.problems,
+        });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/drag-swap') {
+        const params = await readBody(req);
+        const report = await handleDragSwap(params);
+        return json(res, 200, report);
       }
 
       if (req.method === 'POST' && url.pathname === '/api/export') {
